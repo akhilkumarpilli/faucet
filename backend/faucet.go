@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"errors"
-	"math"
 
 	"github.com/dpapathanasiou/go-recaptcha"
 	"github.com/joho/godotenv"
@@ -57,6 +56,9 @@ var key string
 var pass string
 var node string
 var publicUrl string
+var maxTokens float64
+
+const ADDR_LENGTH int = 44
 
 type claim_struct struct {
 	Address  string `json:"address"`
@@ -87,6 +89,10 @@ func main() {
 	pass = getEnv("FAUCET_PASS")
 	node = getEnv("FAUCET_NODE")
 	publicUrl = getEnv("FAUCET_PUBLIC_URL")
+	maxTokens, err = strconv.ParseFloat(getEnv("MAX_TOKENS_ALLOWED"), 64)
+	if err != nil {
+		log.Fatal("MAX_TOKENS_ALLOWED value is invalid")
+	}
 
 	recaptcha.Init(recaptchaSecretKey)
 
@@ -145,17 +151,16 @@ func CheckAccountBalance(address string, amountFaucet string, key string) error 
 		}
 	}
 
-	if len(queryRes.Value.Coins) != 0 {
-		f, err := strconv.ParseFloat(queryRes.Value.Coins[0].Amount, 64)
-		if err != nil {
-			return nil
-		}
-		balance = f
-	} else {
+	if len(queryRes.Value.Coins) == 0 {
 		return nil
 	}
 
-	if balance < float64(10)*math.Pow(10, 6) || accErr != nil {
+	balance, err := strconv.ParseFloat(queryRes.Value.Coins[0].Amount, 64)
+	if err != nil {
+		return nil
+	}
+
+	if balance < maxTokens || accErr != nil {
 		return nil
 	}
 
@@ -181,7 +186,7 @@ func getCoinsHandler(res http.ResponseWriter, request *http.Request) {
 	// 	panic(encodeErr)
 	// }
 
-	if len(address) != 44 {
+	if len(address) != ADDR_LENGTH {
 		panic("Invalid address")
 	}
 
